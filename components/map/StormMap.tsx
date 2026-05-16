@@ -9,12 +9,13 @@ import {
   formatSliderDate,
   type GIBSLayer,
 } from "@/lib/gibs";
+import type { NHCStorm } from "@/lib/nhc";
+import StormMarker from "@/components/storm/StormMarker";
 
 const SATELLITE_LAYER: GIBSLayer = "MODIS_Terra_CorrectedReflectance_TrueColor";
 const SOURCE_ID = "satellite";
 const LAYER_ID = "satellite-layer";
 
-// Date range: last 14 days (MODIS archives)
 function buildDateRange(): string[] {
   const dates: string[] = [];
   for (let i = 14; i >= 0; i--) {
@@ -30,6 +31,7 @@ export default function StormMap() {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [selectedDate, setSelectedDate] = useState(defaultSatelliteDate);
   const [mapReady, setMapReady] = useState(false);
+  const [storms, setStorms] = useState<NHCStorm[]>([]);
 
   const dates = buildDateRange();
   const dateIndex = dates.indexOf(selectedDate);
@@ -64,7 +66,6 @@ export default function StormMap() {
       new maplibregl.AttributionControl({ compact: true }),
       "bottom-left"
     );
-
     map.addControl(
       new maplibregl.NavigationControl({ showCompass: false }),
       "top-right"
@@ -80,22 +81,56 @@ export default function StormMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch active storms
+  useEffect(() => {
+    fetch("/api/storms/active")
+      .then((r) => r.json())
+      .then((data) => setStorms(data.activeStorms ?? []))
+      .catch(() => setStorms([]));
+  }, []);
+
   // Update satellite tiles when date changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-
     const source = map.getSource(SOURCE_ID) as maplibregl.RasterTileSource | undefined;
     if (!source) return;
-
-    source.setTiles(
-      buildGIBSSource(SATELLITE_LAYER, selectedDate).tiles
-    );
+    source.setTiles(buildGIBSSource(SATELLITE_LAYER, selectedDate).tiles);
   }, [selectedDate, mapReady]);
 
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Storm markers — rendered after map is ready */}
+      {mapReady && mapRef.current &&
+        storms.map((storm) => (
+          <StormMarker key={storm.id} storm={storm} map={mapRef.current!} />
+        ))}
+
+      {/* Empty state overlay — only shown when storms array confirmed empty */}
+      {mapReady && storms.length === 0 && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2">
+          <div
+            className="px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+            style={{
+              backgroundColor: "rgba(13,15,20,0.9)",
+              border: "1px solid var(--ink-600)",
+              color: "var(--smoke)",
+              fontFamily: "var(--font-body)",
+            }}
+          >
+            <span>No active storms</span>
+            <a
+              href="/library"
+              style={{ color: "var(--ocean)" }}
+              className="underline"
+            >
+              Browse Storm Library
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Timeline slider */}
       <div
