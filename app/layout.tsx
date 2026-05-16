@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/ui/Nav";
+import Footer from "@/components/ui/Footer";
 
 export const metadata: Metadata = {
   title: "Storm Tracker — Tropical Cyclone Research",
@@ -21,6 +22,7 @@ export default function RootLayout({
       >
         <Nav />
         {children}
+        <Footer />
       </body>
     </html>
   );
