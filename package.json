@@ -21,6 +21,7 @@
     "@types/node": "^20.19.41",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "postgres": "^3.4.9",
     "tailwindcss": "^4",
     "tsx": "^4.22.0",
     "typescript": "^5"

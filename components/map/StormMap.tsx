@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
 import {
   buildGIBSSource,
   defaultSatelliteDate,
@@ -13,10 +12,23 @@ import {
 import type { NHCStorm } from "@/lib/nhc";
 import { classificationLabel } from "@/lib/nhc";
 import { getCategoryColor, getSaffirSimpsonCategory, knotsToKmh } from "@/lib/utils";
+import {
+  type WeatherLayer,
+  owmTileUrl,
+  getRadarTileUrl,
+  LAYER_LEGENDS,
+  fetchWeatherPoint,
+  type OWMPoint,
+} from "@/lib/weather-layers";
+import LayerPanel from "./LayerPanel";
+import WindParticles from "./WindParticles";
+import LocationSearch from "./LocationSearch";
 
 const SATELLITE_LAYER: GIBSLayer = "MODIS_Terra_CorrectedReflectance_TrueColor";
 const SOURCE_ID = "satellite";
 const LAYER_ID = "satellite-layer";
+const WX_SRC = "weather-source";
+const WX_LAYER = "weather-overlay";
 
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -58,7 +70,6 @@ function addStormMarker(
   el.onmouseleave = () => (el.style.transform = "scale(1)");
   el.onclick = () => onNavigate(storm.id);
 
-  // XSS-safe: escape all user-supplied strings before injecting into HTML
   const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: false })
     .setHTML(`
       <div style="background:#0d0f14;border:1px solid #1b1f2a;border-radius:6px;padding:10px 14px;min-width:160px;font-family:'Inter Tight',system-ui,sans-serif;">
@@ -77,50 +88,100 @@ function addStormMarker(
     .addTo(map);
 }
 
+type WindPoint = { lat: number; lng: number; u: number; v: number };
+
+function degToCompass(deg: number): string {
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
 export default function StormMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const coneIdsRef = useRef<string[]>([]);
   const coneAbortRef = useRef<AbortController | null>(null);
+  const dateInitRef = useRef(false);
 
-  // Fix #8: initialize to actual last date in range, not offset-computed
   const dates = useMemo(() => buildDateRange(), []);
   const [selectedDate, setSelectedDate] = useState(() => defaultSatelliteDate());
   const [mapReady, setMapReady] = useState(false);
   const [storms, setStorms] = useState<NHCStorm[]>([]);
+  const [activeLayers, setActiveLayers] = useState<Set<WeatherLayer>>(new Set());
+  const [windPoints, setWindPoints] = useState<WindPoint[]>([]);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const [hoverWeather, setHoverWeather] = useState<OWMPoint | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function toggleLayer(layer: WeatherLayer) {
+    setActiveLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(layer)) next.delete(layer);
+      else next.add(layer);
+      return next;
+    });
+  }
+  const OWM_KEY = process.env.NEXT_PUBLIC_OWM_KEY ?? "";
+
+  // Only show tooltip when a tile layer with legend is active
+  const hasTileLayer = (["temp", "precipitation", "pressure", "wind"] as WeatherLayer[]).some(
+    (l) => activeLayers.has(l)
+  );
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!mapReady || !mapRef.current || !hasTileLayer) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setHoverPos({ x, y });
+
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(async () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const lngLat = map.unproject([x, y]);
+      const data = await fetchWeatherPoint(lngLat.lat, lngLat.lng, OWM_KEY);
+      setHoverWeather(data);
+    }, 400);
+  }
+
+  function handleMouseLeave() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setHoverPos(null);
+    setHoverWeather(null);
+  }
+
   const router = useRouter();
 
   const dateIndex = dates.indexOf(selectedDate);
 
+  // Init map
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: {
         version: 8,
         sources: { [SOURCE_ID]: buildGIBSSource(SATELLITE_LAYER, selectedDate) },
-        layers: [{ id: LAYER_ID, type: "raster", source: SOURCE_ID, maxzoom: 9 }],
+        layers: [
+            { id: "background", type: "background", paint: { "background-color": "#0d1520" } },
+            { id: LAYER_ID, type: "raster", source: SOURCE_ID },
+          ],
       },
       center: [-60, 15],
       zoom: 3,
       maxZoom: 9,
       attributionControl: false,
     });
-
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.on("load", () => setMapReady(true));
     mapRef.current = map;
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
+    return () => { map.remove(); mapRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch active storms
   useEffect(() => {
     fetch("/api/storms/active")
       .then((r) => (r.ok ? r.json() : { activeStorms: [] }))
@@ -128,21 +189,18 @@ export default function StormMap() {
       .catch(() => setStorms([]));
   }, []);
 
-  // Fix #2 + #3: abort in-flight cone fetches on cleanup, remove old cone layers before re-adding
+  // Storm markers + cones
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    // Abort previous cone fetches
     coneAbortRef.current?.abort();
     const ac = new AbortController();
     coneAbortRef.current = ac;
 
-    // Remove old markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Remove old cone layers+sources
     coneIdsRef.current.forEach((id) => {
       if (map.getLayer(`cone-fill-${id}`)) map.removeLayer(`cone-fill-${id}`);
       if (map.getLayer(`cone-outline-${id}`)) map.removeLayer(`cone-outline-${id}`);
@@ -153,14 +211,10 @@ export default function StormMap() {
     if (storms.length === 0) return;
 
     const navigate = (id: string) => router.push(`/live/${id}`);
-    storms.forEach((storm) => {
-      markersRef.current.push(addStormMarker(map, storm, navigate));
-    });
+    storms.forEach((storm) => { markersRef.current.push(addStormMarker(map, storm, navigate)); });
 
-    // Add cones with abort support
     storms.forEach((storm) => {
       if (!storm.trackCone?.geoJSON) return;
-      // Validate host before fetching (fix #15)
       try {
         const url = new URL(storm.trackCone.geoJSON);
         if (!url.hostname.endsWith("nhc.noaa.gov")) return;
@@ -178,30 +232,154 @@ export default function StormMap() {
           m.addLayer({ id: `cone-outline-${storm.id}`, type: "line", source: src, paint: { "line-color": "#f59e0b", "line-width": 1.5, "line-dasharray": [4, 2] } });
           coneIdsRef.current.push(storm.id);
         })
-        .catch(() => {}); // AbortError silently ignored
+        .catch(() => {});
     });
 
-    return () => {
-      ac.abort();
-    };
+    return () => { ac.abort(); };
   }, [storms, mapReady, router]);
 
+  // Satellite date slider — only update tiles when date actually changes, not on initial load
   useEffect(() => {
+    if (!dateInitRef.current) { dateInitRef.current = true; return; }
     const map = mapRef.current;
-    if (!map || !mapReady) return;
+    if (!map) return;
     const source = map.getSource(SOURCE_ID) as maplibregl.RasterTileSource | undefined;
     if (!source) return;
     source.setTiles(buildGIBSSource(SATELLITE_LAYER, selectedDate).tiles);
-  }, [selectedDate, mapReady]);
+  }, [selectedDate]);
+
+  // Sync weather tile overlays with activeLayers
+  const TILE_LAYERS = ["radar", "precipitation", "temp", "pressure"] as const;
+  const OWM_MAP: Record<string, string> = {
+    precipitation: "precipitation_new",
+    temp: "temp_new",
+    pressure: "pressure_new",
+  };
+
+  useEffect(() => {
+    let alive = true;
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    // Remove tile layers that were deactivated
+    for (const id of TILE_LAYERS) {
+      if (!activeLayers.has(id)) {
+        if (map.getLayer(`${WX_LAYER}-${id}`)) map.removeLayer(`${WX_LAYER}-${id}`);
+        if (map.getSource(`${WX_SRC}-${id}`)) map.removeSource(`${WX_SRC}-${id}`);
+      }
+    }
+
+    // Add tile layers that are newly active
+    for (const id of TILE_LAYERS) {
+      if (!activeLayers.has(id)) continue;
+      if (map.getLayer(`${WX_LAYER}-${id}`)) continue; // already present
+
+      const opacity = id === "radar" ? 0.8 : 0.65;
+
+      if (id === "radar") {
+        getRadarTileUrl().then((url) => {
+          if (!alive || !url || !mapRef.current) return;
+          const m = mapRef.current;
+          if (m.getLayer(`${WX_LAYER}-radar`)) return;
+          m.addSource(`${WX_SRC}-radar`, { type: "raster", tiles: [url], tileSize: 256 });
+          m.addLayer({ id: `${WX_LAYER}-radar`, type: "raster", source: `${WX_SRC}-radar`, paint: { "raster-opacity": opacity } });
+        });
+      } else {
+        map.addSource(`${WX_SRC}-${id}`, { type: "raster", tiles: [owmTileUrl(OWM_MAP[id])], tileSize: 256 });
+        map.addLayer({ id: `${WX_LAYER}-${id}`, type: "raster", source: `${WX_SRC}-${id}`, paint: { "raster-opacity": opacity } });
+      }
+    }
+
+    return () => { alive = false; };
+  }, [activeLayers, mapReady]);
+
+  // Fetch wind data once when wind layer is first activated
+  useEffect(() => {
+    if (!activeLayers.has("wind") || windPoints.length > 0) return;
+    fetch("/api/wind")
+      .then((r) => (r.ok ? r.json() : { points: [] }))
+      .then((data) => setWindPoints(data.points ?? []))
+      .catch(() => setWindPoints([]));
+  }, [activeLayers, windPoints.length]);
+
+  const LEGEND_ORDER: WeatherLayer[] = ["wind", "temp", "precipitation", "pressure"];
+  const activeLegendLayer = LEGEND_ORDER.find((l) => activeLayers.has(l) && LAYER_LEGENDS[l]);
+  const activeLegendConfig = activeLegendLayer ? LAYER_LEGENDS[activeLegendLayer] : null;
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={containerRef} className="absolute inset-0" aria-label="Interactive storm map" role="application" />
+    <div className="relative w-full h-full" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <div
+        ref={containerRef}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        aria-label="Interactive storm map"
+        role="application"
+      />
+
+      {mapReady && mapRef.current && activeLayers.has("wind") && windPoints.length > 0 && (
+        <WindParticles map={mapRef.current} points={windPoints} />
+      )}
+
+      {mapReady && mapRef.current && (
+        <LocationSearch map={mapRef.current} />
+      )}
+
+
+      {/* Hover tooltip */}
+      {hoverPos && hoverWeather && hasTileLayer && (
+        <div
+          style={{
+            position: "absolute",
+            left: hoverPos.x + 14,
+            top: Math.max(hoverPos.y - 80, 8),
+            pointerEvents: "none",
+            backgroundColor: "rgba(13,15,20,0.92)",
+            border: "1px solid var(--ink-600)",
+            borderRadius: 6,
+            padding: "8px 12px",
+            fontSize: 12,
+            fontFamily: "var(--font-mono)",
+            color: "var(--cream)",
+            zIndex: 20,
+            minWidth: 130,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          {activeLayers.has("temp") && (
+            <div style={{ marginBottom: 3 }}>
+              <span style={{ color: "var(--ash)", fontSize: 10 }}>TEMP </span>
+              <span style={{ color: "#f97316" }}>{hoverWeather.temp.toFixed(1)}°C</span>
+            </div>
+          )}
+          {(activeLayers.has("wind")) && (
+            <div style={{ marginBottom: 3 }}>
+              <span style={{ color: "var(--ash)", fontSize: 10 }}>WIND </span>
+              <span style={{ color: "#0ea5e9" }}>{hoverWeather.windSpeed.toFixed(0)} km/h</span>
+              <span style={{ color: "var(--ash)", fontSize: 10 }}> {degToCompass(hoverWeather.windDeg)}</span>
+            </div>
+          )}
+          {activeLayers.has("pressure") && (
+            <div style={{ marginBottom: 3 }}>
+              <span style={{ color: "var(--ash)", fontSize: 10 }}>PRES </span>
+              <span style={{ color: "#a78bfa" }}>{hoverWeather.pressure} hPa</span>
+            </div>
+          )}
+          {activeLayers.has("precipitation") && (
+            <div>
+              <span style={{ color: "var(--ash)", fontSize: 10 }}>RAIN </span>
+              <span style={{ color: "#22c55e" }}>{hoverWeather.rain.toFixed(1)} mm/h</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <LayerPanel activeLayers={activeLayers} onToggle={toggleLayer} />
 
       {mapReady && storms.length === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2" role="status">
-          <div className="px-4 py-2 rounded-lg text-sm flex items-center gap-3"
-            style={{ backgroundColor: "rgba(13,15,20,0.9)", border: "1px solid var(--ink-600)", color: "var(--smoke)", fontFamily: "var(--font-body)" }}>
+          <div
+            className="px-4 py-2 rounded-lg text-sm flex items-center gap-3"
+            style={{ backgroundColor: "rgba(13,15,20,0.9)", border: "1px solid var(--ink-600)", color: "var(--smoke)", fontFamily: "var(--font-body)" }}
+          >
             No active storms ·
             <a href="/library" style={{ color: "var(--ocean)" }} className="underline">Browse Storm Library</a>
           </div>
@@ -209,27 +387,102 @@ export default function StormMap() {
       )}
 
       {mapReady && storms.length > 0 && (
-        <div className="absolute top-4 left-4 px-3 py-1 rounded text-xs"
-          style={{ backgroundColor: "rgba(13,15,20,0.85)", border: "1px solid var(--ink-600)", color: "var(--smoke)", fontFamily: "var(--font-mono)" }}
-          aria-live="polite">
+        <div
+          className="absolute top-4 px-3 py-1 rounded text-xs"
+          style={{
+            left: 192,
+            backgroundColor: "rgba(13,15,20,0.85)",
+            border: "1px solid var(--ink-600)",
+            color: "var(--smoke)",
+            fontFamily: "var(--font-mono)",
+          }}
+          aria-live="polite"
+        >
           {storms.length} active storm{storms.length !== 1 ? "s" : ""}
         </div>
       )}
 
-      <div className="absolute bottom-0 left-0 right-0 px-6 py-3 flex items-center gap-4"
-        style={{ backgroundColor: "rgba(13,15,20,0.85)" }}>
-        <span className="text-xs shrink-0 tabular-nums" style={{ fontFamily: "var(--font-mono)", color: "var(--smoke)" }}>
-          {formatSliderDate(selectedDate)}
-        </span>
-        <input
-          type="range" min={0} max={dates.length - 1}
-          value={dateIndex === -1 ? dates.length - 3 : dateIndex}
-          onChange={(e) => setSelectedDate(dates[parseInt(e.target.value)])}
-          className="flex-1 h-1 appearance-none rounded cursor-pointer"
-          style={{ accentColor: "var(--amber-glow)" }}
-          aria-label="Select satellite imagery date"
-        />
-        <span className="text-xs shrink-0" style={{ fontFamily: "var(--font-mono)", color: "var(--ash)" }}>today</span>
+      <div
+        className="absolute bottom-0 left-0 right-0"
+        style={{ backgroundColor: "rgba(13,15,20,0.90)" }}
+      >
+        {/* Legend bar — shown when a tile layer with legend is active */}
+        {activeLegendConfig && (
+          <div className="px-6 pt-3 pb-1 flex items-center gap-4">
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "var(--font-mono)",
+                color: "var(--ash)",
+                letterSpacing: "0.08em",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {activeLegendConfig.label.toUpperCase()}
+            </span>
+            <div style={{ flex: 1, position: "relative" }}>
+              <div
+                style={{
+                  height: 8,
+                  borderRadius: 4,
+                  background: `linear-gradient(to right, ${activeLegendConfig.stops.map((s) => s.color).join(", ")})`,
+                  marginBottom: 3,
+                }}
+              />
+              <div style={{ position: "relative", height: 12 }}>
+                {activeLegendConfig.stops.map((stop, i) => {
+                  const pct = (i / (activeLegendConfig.stops.length - 1)) * 100;
+                  return (
+                    <span
+                      key={stop.value}
+                      style={{
+                        position: "absolute",
+                        left: `${pct}%`,
+                        transform:
+                          i === 0
+                            ? "none"
+                            : i === activeLegendConfig.stops.length - 1
+                            ? "translateX(-100%)"
+                            : "translateX(-50%)",
+                        fontSize: 9,
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--smoke)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {stop.value}
+                      {i === activeLegendConfig.stops.length - 1 ? `+ ${activeLegendConfig.unit}` : ""}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Date slider */}
+        <div className="px-6 py-2 flex items-center gap-4">
+          <span
+            className="text-xs shrink-0 tabular-nums"
+            style={{ fontFamily: "var(--font-mono)", color: "var(--smoke)" }}
+          >
+            {formatSliderDate(selectedDate)}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={dates.length - 1}
+            value={dateIndex === -1 ? dates.length - 3 : dateIndex}
+            onChange={(e) => setSelectedDate(dates[parseInt(e.target.value)])}
+            className="flex-1 h-1 appearance-none rounded cursor-pointer"
+            style={{ accentColor: "var(--amber-glow)" }}
+            aria-label="Select satellite imagery date"
+          />
+          <span className="text-xs shrink-0" style={{ fontFamily: "var(--font-mono)", color: "var(--ash)" }}>
+            {formatSliderDate(dates[dates.length - 1])}
+          </span>
+        </div>
       </div>
     </div>
   );

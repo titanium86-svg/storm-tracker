@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import Nav from "@/components/ui/Nav";
 import Footer from "@/components/ui/Footer";
