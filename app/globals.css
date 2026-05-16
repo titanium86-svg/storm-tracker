@@ -1,26 +1,48 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* Background */
+  --ink-900: #08090c;
+  --ink-800: #0d0f14;
+  --ink-700: #13161e;
+  --ink-600: #1b1f2a;
+  --ink-500: #262b38;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  /* Foreground */
+  --bone:   #e8e3d8;
+  --cream:  #f5efe1;
+  --smoke:  #9ca3af;
+  --ash:    #6b7280;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Accent */
+  --rust:       #c2410c;
+  --amber-glow: #fbbf24;
+  --ocean:      #0891b2;
+
+  /* Saffir-Simpson */
+  --cat-td: #6b7280;
+  --cat-ts: #06b6d4;
+  --cat-1:  #3b82f6;
+  --cat-2:  #10b981;
+  --cat-3:  #eab308;
+  --cat-4:  #f97316;
+  --cat-5:  #ef4444;
+
+  /* Functional */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger:  #ef4444;
+  --info:    #0891b2;
+
+  /* Fonts */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Inter Tight", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink-900);
+  color: var(--bone);
+  font-family: var(--font-body);
 }
