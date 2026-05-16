@@ -46,8 +46,18 @@ export default function RootLayout({
         className="min-h-full flex flex-col"
         style={{ backgroundColor: "var(--ink-900)", color: "var(--bone)" }}
       >
+        {/* Skip to main content for keyboard users */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded focus:text-sm"
+          style={{ backgroundColor: "var(--amber-glow)", color: "var(--ink-900)", fontFamily: "var(--font-body)" }}
+        >
+          Skip to content
+        </a>
         <Nav />
-        {children}
+        <div id="main-content">
+          {children}
+        </div>
         <Footer />
       </body>
     </html>

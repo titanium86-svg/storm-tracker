@@ -1,6 +1,7 @@
 import type { StormDetail } from "@/lib/library";
 import { getCategoryColor } from "@/lib/utils";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 const BASIN_LABEL: Record<string, string> = {
@@ -35,10 +36,17 @@ export default function ResearchArticle({ storm }: Props) {
 
       {/* Hero image */}
       {storm.og_image_url && (
-        <div
-          className="rounded-xl overflow-hidden mb-8 h-72 bg-cover bg-center"
-          style={{ backgroundImage: `url(${storm.og_image_url})` }}
-        />
+        <div className="rounded-xl overflow-hidden mb-8 h-72 relative">
+          <Image
+            src={storm.og_image_url}
+            alt={`Satellite or reference image of ${storm.full_name}`}
+            fill
+            sizes="(max-width: 768px) 100vw, 768px"
+            className="object-cover"
+            priority
+            unoptimized={storm.og_image_url.includes("wikimedia")}
+          />
+        </div>
       )}
 
       {/* Title block */}
