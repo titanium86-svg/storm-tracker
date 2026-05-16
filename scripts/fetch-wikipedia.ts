@@ -41,7 +41,7 @@ async function sleep(ms: number) {
 function extractNumbers(text: string): { wind?: number; pressure?: number; deaths?: number } {
   const wind = text.match(/(\d{2,3})\s*mph/)?.[1];
   const pressure = text.match(/(\d{3})\s*mb/)?.[1];
-  const deaths = text.match(/(\d[\d,]+)\s*(deaths?|fatalities|killed|people died)/i)?.[1]?.replace(/,/g, "");
+  const deaths = text.match(/(\d[\d,]*)\s*(deaths?|fatalities|killed|people died)/i)?.[1]?.replace(/,/g, "");
   return {
     wind: wind ? Math.round(parseInt(wind) * 1.60934) : undefined,
     pressure: pressure ? parseInt(pressure) : undefined,
@@ -102,7 +102,8 @@ async function fetchStormData(storm: StormEntry): Promise<StormMeta> {
 }
 
 function escapeSql(s: string): string {
-  return s.replace(/'/g, "''");
+  // Replace backslashes first, then single quotes
+  return s.replace(/\\/g, "\\\\").replace(/'/g, "''").replace(/\0/g, "");
 }
 
 function toSqlArray(arr: string[]): string {

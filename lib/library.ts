@@ -40,7 +40,10 @@ export async function getStorms(basin?: string): Promise<StormCard[]> {
   if (basin) q = q.eq("basin", basin);
 
   const { data, error } = await q;
-  if (error) return [];
+  if (error) {
+    console.error("[library] getStorms error:", error.message);
+    return [];
+  }
   return (data as StormCard[]) ?? [];
 }
 
@@ -52,6 +55,10 @@ export async function getStormBySlug(slug: string): Promise<StormDetail | null> 
     .eq("slug", slug)
     .single();
 
-  if (error || !data) return null;
+  if (error) {
+    console.error("[library] getStormBySlug error:", error.message);
+    return null;
+  }
+  if (!data) return null;
   return data as StormDetail;
 }
