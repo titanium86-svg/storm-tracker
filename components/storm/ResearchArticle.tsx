@@ -267,10 +267,10 @@ export default function ResearchArticle({ storm }: Props) {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 mb-4 mt-10">
-      <div style={{ width: 3, height: 18, backgroundColor: "var(--ocean)", borderRadius: 2, flexShrink: 0 }} />
+      <div style={{ width: 3, height: 22, backgroundColor: "var(--ocean)", borderRadius: 2, flexShrink: 0 }} />
       <p
-        className="text-sm font-semibold uppercase tracking-widest"
-        style={{ color: "var(--cream)", fontFamily: "var(--font-body)", letterSpacing: "0.12em" }}
+        className="font-semibold uppercase"
+        style={{ fontSize: 18, color: "var(--cream)", fontFamily: "var(--font-body)", letterSpacing: "0.1em" }}
       >
         {children}
       </p>
