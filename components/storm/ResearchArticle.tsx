@@ -34,20 +34,45 @@ export default function ResearchArticle({ storm }: Props) {
         Storm Library
       </Link>
 
-      {/* Hero image */}
-      {storm.og_image_url && (
-        <div className="rounded-xl overflow-hidden mb-8 h-72 relative">
-          <Image
-            src={storm.og_image_url}
-            alt={`Satellite or reference image of ${storm.full_name}`}
-            fill
-            sizes="(max-width: 768px) 100vw, 768px"
-            className="object-cover"
-            priority
-            unoptimized={storm.og_image_url.includes("wikimedia")}
-          />
-        </div>
-      )}
+      {/* Hero image — prefer first storm_image, fall back to og_image_url */}
+      {(() => {
+        const heroUrl = storm.images?.[0]?.url ?? storm.og_image_url;
+        const heroCaption = storm.images?.[0]?.caption ?? null;
+        const heroCredit = storm.images?.[0]?.credit ?? null;
+        if (!heroUrl) return null;
+        return (
+          <div className="rounded-xl overflow-hidden mb-8 relative">
+            <div className="h-80 relative">
+              <Image
+                src={heroUrl}
+                alt={heroCaption ?? `Satellite image of ${storm.full_name}`}
+                fill
+                sizes="(max-width: 768px) 100vw, 768px"
+                className="object-cover"
+                priority
+                unoptimized
+              />
+            </div>
+            {(heroCaption || heroCredit) && (
+              <div
+                className="px-4 py-2"
+                style={{ backgroundColor: "var(--ink-800)", borderTop: "1px solid var(--ink-600)" }}
+              >
+                {heroCaption && (
+                  <p style={{ fontSize: 12, color: "var(--bone)", fontFamily: "var(--font-body)", lineHeight: 1.5 }}>
+                    {heroCaption}
+                  </p>
+                )}
+                {heroCredit && (
+                  <p style={{ fontSize: 10, color: "var(--ash)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
+                    {heroCredit}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Title block */}
       <div className="mb-8">
@@ -104,6 +129,34 @@ export default function ResearchArticle({ storm }: Props) {
           <StatCell label="Damage" value={formattedDamage} />
         )}
       </div>
+
+      {/* Secondary images (track map, damage photos) */}
+      {storm.images && storm.images.length > 1 && (
+        <div className="mb-10 grid gap-4" style={{ gridTemplateColumns: storm.images.length >= 3 ? "1fr 1fr" : "1fr" }}>
+          {storm.images.slice(1).map((img) => (
+            <div key={img.id} className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--ink-600)" }}>
+              <div className="relative" style={{ height: 200 }}>
+                <Image
+                  src={img.url}
+                  alt={img.caption}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 400px"
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+              <div className="px-3 py-2" style={{ backgroundColor: "var(--ink-800)" }}>
+                <p style={{ fontSize: 11, color: "var(--bone)", fontFamily: "var(--font-body)", lineHeight: 1.4 }}>
+                  {img.caption}
+                </p>
+                <p style={{ fontSize: 9, color: "var(--ash)", fontFamily: "var(--font-mono)", marginTop: 2 }}>
+                  {img.credit}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Affected areas */}
       {storm.affected_areas && storm.affected_areas.length > 0 && (
@@ -213,12 +266,15 @@ export default function ResearchArticle({ storm }: Props) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p
-      className="text-xs uppercase tracking-widest mb-3 mt-8"
-      style={{ color: "var(--smoke)", fontFamily: "var(--font-body)" }}
-    >
-      {children}
-    </p>
+    <div className="flex items-center gap-3 mb-4 mt-10">
+      <div style={{ width: 3, height: 18, backgroundColor: "var(--ocean)", borderRadius: 2, flexShrink: 0 }} />
+      <p
+        className="text-sm font-semibold uppercase tracking-widest"
+        style={{ color: "var(--cream)", fontFamily: "var(--font-body)", letterSpacing: "0.12em" }}
+      >
+        {children}
+      </p>
+    </div>
   );
 }
 
