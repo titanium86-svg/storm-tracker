@@ -24,7 +24,7 @@ import LayerPanel from "./LayerPanel";
 import WindParticles from "./WindParticles";
 import LocationSearch from "./LocationSearch";
 
-const SATELLITE_LAYER: GIBSLayer = "MODIS_Terra_CorrectedReflectance_TrueColor";
+const SATELLITE_LAYER: GIBSLayer = "VIIRS_SNPP_CorrectedReflectance_TrueColor";
 const SOURCE_ID = "satellite";
 const LAYER_ID = "satellite-layer";
 const WX_SRC = "weather-source";
