@@ -36,7 +36,7 @@ function esc(s: string): string {
 
 function buildDateRange(): string[] {
   const dates: string[] = [];
-  for (let i = 14; i >= 0; i--) {
+  for (let i = 16; i >= 2; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     dates.push(d.toISOString().slice(0, 10));
@@ -107,26 +107,18 @@ export default function StormMap() {
   const [selectedDate, setSelectedDate] = useState(() => defaultSatelliteDate());
   const [mapReady, setMapReady] = useState(false);
   const [storms, setStorms] = useState<NHCStorm[]>([]);
-  const [activeLayers, setActiveLayers] = useState<Set<WeatherLayer>>(new Set());
+  const [activeLayer, setActiveLayer] = useState<WeatherLayer | null>(null);
   const [windPoints, setWindPoints] = useState<WindPoint[]>([]);
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const [hoverWeather, setHoverWeather] = useState<OWMPoint | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function toggleLayer(layer: WeatherLayer) {
-    setActiveLayers((prev) => {
-      const next = new Set(prev);
-      if (next.has(layer)) next.delete(layer);
-      else next.add(layer);
-      return next;
-    });
+  function selectLayer(layer: WeatherLayer) {
+    setActiveLayer((prev) => (prev === layer ? null : layer));
   }
   const OWM_KEY = process.env.NEXT_PUBLIC_OWM_KEY ?? "";
 
-  // Only show tooltip when a tile layer with legend is active
-  const hasTileLayer = (["temp", "precipitation", "pressure", "wind"] as WeatherLayer[]).some(
-    (l) => activeLayers.has(l)
-  );
+  const hasTileLayer = activeLayer !== null && activeLayer !== "radar";
 
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     if (!mapReady || !mapRef.current || !hasTileLayer) return;
@@ -248,7 +240,7 @@ export default function StormMap() {
     source.setTiles(buildGIBSSource(SATELLITE_LAYER, selectedDate).tiles);
   }, [selectedDate]);
 
-  // Sync weather tile overlays with activeLayers
+  // Sync weather tile overlays with activeLayer (single-select)
   const TILE_LAYERS = ["radar", "precipitation", "temp", "pressure"] as const;
   const OWM_MAP: Record<string, string> = {
     precipitation: "precipitation_new",
@@ -261,50 +253,45 @@ export default function StormMap() {
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
-    // Remove tile layers that were deactivated
+    // Remove all tile layers that aren't the active one
     for (const id of TILE_LAYERS) {
-      if (!activeLayers.has(id)) {
+      if (id !== activeLayer) {
         if (map.getLayer(`${WX_LAYER}-${id}`)) map.removeLayer(`${WX_LAYER}-${id}`);
         if (map.getSource(`${WX_SRC}-${id}`)) map.removeSource(`${WX_SRC}-${id}`);
       }
     }
 
-    // Add tile layers that are newly active
-    for (const id of TILE_LAYERS) {
-      if (!activeLayers.has(id)) continue;
-      if (map.getLayer(`${WX_LAYER}-${id}`)) continue; // already present
+    const id = activeLayer as typeof TILE_LAYERS[number] | null;
+    if (!id || !TILE_LAYERS.includes(id)) return () => { alive = false; };
+    if (map.getLayer(`${WX_LAYER}-${id}`)) return () => { alive = false; };
 
-      const opacity = id === "radar" ? 0.8 : 0.65;
-
-      if (id === "radar") {
-        getRadarTileUrl().then((url) => {
-          if (!alive || !url || !mapRef.current) return;
-          const m = mapRef.current;
-          if (m.getLayer(`${WX_LAYER}-radar`)) return;
-          m.addSource(`${WX_SRC}-radar`, { type: "raster", tiles: [url], tileSize: 256 });
-          m.addLayer({ id: `${WX_LAYER}-radar`, type: "raster", source: `${WX_SRC}-radar`, paint: { "raster-opacity": opacity } });
-        });
-      } else {
-        map.addSource(`${WX_SRC}-${id}`, { type: "raster", tiles: [owmTileUrl(OWM_MAP[id])], tileSize: 256 });
-        map.addLayer({ id: `${WX_LAYER}-${id}`, type: "raster", source: `${WX_SRC}-${id}`, paint: { "raster-opacity": opacity } });
-      }
+    const opacity = id === "radar" ? 0.8 : 0.65;
+    if (id === "radar") {
+      getRadarTileUrl().then((url) => {
+        if (!alive || !url || !mapRef.current) return;
+        const m = mapRef.current;
+        if (m.getLayer(`${WX_LAYER}-radar`)) return;
+        m.addSource(`${WX_SRC}-radar`, { type: "raster", tiles: [url], tileSize: 256 });
+        m.addLayer({ id: `${WX_LAYER}-radar`, type: "raster", source: `${WX_SRC}-radar`, paint: { "raster-opacity": opacity } });
+      });
+    } else {
+      map.addSource(`${WX_SRC}-${id}`, { type: "raster", tiles: [owmTileUrl(OWM_MAP[id])], tileSize: 256 });
+      map.addLayer({ id: `${WX_LAYER}-${id}`, type: "raster", source: `${WX_SRC}-${id}`, paint: { "raster-opacity": opacity } });
     }
 
     return () => { alive = false; };
-  }, [activeLayers, mapReady]);
+  }, [activeLayer, mapReady]);
 
   // Fetch wind data once when wind layer is first activated
   useEffect(() => {
-    if (!activeLayers.has("wind") || windPoints.length > 0) return;
+    if (activeLayer !== "wind" || windPoints.length > 0) return;
     fetch("/api/wind")
       .then((r) => (r.ok ? r.json() : { points: [] }))
       .then((data) => setWindPoints(data.points ?? []))
       .catch(() => setWindPoints([]));
-  }, [activeLayers, windPoints.length]);
+  }, [activeLayer, windPoints.length]);
 
-  const LEGEND_ORDER: WeatherLayer[] = ["wind", "temp", "precipitation", "pressure"];
-  const activeLegendLayer = LEGEND_ORDER.find((l) => activeLayers.has(l) && LAYER_LEGENDS[l]);
-  const activeLegendConfig = activeLegendLayer ? LAYER_LEGENDS[activeLegendLayer] : null;
+  const activeLegendConfig = activeLayer ? (LAYER_LEGENDS[activeLayer] ?? null) : null;
 
   return (
     <div className="relative w-full h-full" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
@@ -315,7 +302,7 @@ export default function StormMap() {
         role="application"
       />
 
-      {mapReady && mapRef.current && activeLayers.has("wind") && windPoints.length > 0 && (
+      {mapReady && mapRef.current && activeLayer === "wind" && windPoints.length > 0 && (
         <WindParticles map={mapRef.current} points={windPoints} />
       )}
 
@@ -344,26 +331,26 @@ export default function StormMap() {
             backdropFilter: "blur(4px)",
           }}
         >
-          {activeLayers.has("temp") && (
-            <div style={{ marginBottom: 3 }}>
+          {activeLayer === "temp" && (
+            <div>
               <span style={{ color: "var(--ash)", fontSize: 10 }}>TEMP </span>
               <span style={{ color: "#f97316" }}>{hoverWeather.temp.toFixed(1)}°C</span>
             </div>
           )}
-          {(activeLayers.has("wind")) && (
-            <div style={{ marginBottom: 3 }}>
+          {activeLayer === "wind" && (
+            <div>
               <span style={{ color: "var(--ash)", fontSize: 10 }}>WIND </span>
               <span style={{ color: "#0ea5e9" }}>{hoverWeather.windSpeed.toFixed(0)} km/h</span>
               <span style={{ color: "var(--ash)", fontSize: 10 }}> {degToCompass(hoverWeather.windDeg)}</span>
             </div>
           )}
-          {activeLayers.has("pressure") && (
-            <div style={{ marginBottom: 3 }}>
+          {activeLayer === "pressure" && (
+            <div>
               <span style={{ color: "var(--ash)", fontSize: 10 }}>PRES </span>
               <span style={{ color: "#a78bfa" }}>{hoverWeather.pressure} hPa</span>
             </div>
           )}
-          {activeLayers.has("precipitation") && (
+          {activeLayer === "precipitation" && (
             <div>
               <span style={{ color: "var(--ash)", fontSize: 10 }}>RAIN </span>
               <span style={{ color: "#22c55e" }}>{hoverWeather.rain.toFixed(1)} mm/h</span>
@@ -372,7 +359,7 @@ export default function StormMap() {
         </div>
       )}
 
-      <LayerPanel activeLayers={activeLayers} onToggle={toggleLayer} />
+      <LayerPanel activeLayer={activeLayer} onSelect={selectLayer} />
 
       {mapReady && storms.length === 0 && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2" role="status">
@@ -402,65 +389,41 @@ export default function StormMap() {
         </div>
       )}
 
+      {/* Floating legend — bottom-left, above attribution */}
+      {activeLegendConfig && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 48,
+            left: 16,
+            width: 180,
+            zIndex: 10,
+            pointerEvents: "none",
+            backgroundColor: "rgba(13,15,20,0.82)",
+            borderRadius: 6,
+            padding: "6px 10px",
+            border: "1px solid var(--ink-600)",
+          }}
+        >
+          <div style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--ash)", letterSpacing: "0.1em", marginBottom: 4 }}>
+            {activeLegendConfig.label.toUpperCase()}
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: `linear-gradient(to right, ${activeLegendConfig.stops.map((s) => s.color).join(", ")})`, marginBottom: 3 }} />
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 8, fontFamily: "var(--font-mono)", color: "var(--smoke)" }}>
+              {activeLegendConfig.stops[0].value}
+            </span>
+            <span style={{ fontSize: 8, fontFamily: "var(--font-mono)", color: "var(--smoke)" }}>
+              {activeLegendConfig.stops[activeLegendConfig.stops.length - 1].value}+ {activeLegendConfig.unit}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div
         className="absolute bottom-0 left-0 right-0"
         style={{ backgroundColor: "rgba(13,15,20,0.90)" }}
       >
-        {/* Legend bar — shown when a tile layer with legend is active */}
-        {activeLegendConfig && (
-          <div className="px-6 pt-3 pb-1 flex items-center gap-4">
-            <span
-              style={{
-                fontSize: 10,
-                fontFamily: "var(--font-mono)",
-                color: "var(--ash)",
-                letterSpacing: "0.08em",
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {activeLegendConfig.label.toUpperCase()}
-            </span>
-            <div style={{ flex: 1, position: "relative" }}>
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 4,
-                  background: `linear-gradient(to right, ${activeLegendConfig.stops.map((s) => s.color).join(", ")})`,
-                  marginBottom: 3,
-                }}
-              />
-              <div style={{ position: "relative", height: 12 }}>
-                {activeLegendConfig.stops.map((stop, i) => {
-                  const pct = (i / (activeLegendConfig.stops.length - 1)) * 100;
-                  return (
-                    <span
-                      key={stop.value}
-                      style={{
-                        position: "absolute",
-                        left: `${pct}%`,
-                        transform:
-                          i === 0
-                            ? "none"
-                            : i === activeLegendConfig.stops.length - 1
-                            ? "translateX(-100%)"
-                            : "translateX(-50%)",
-                        fontSize: 9,
-                        fontFamily: "var(--font-mono)",
-                        color: "var(--smoke)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {stop.value}
-                      {i === activeLegendConfig.stops.length - 1 ? `+ ${activeLegendConfig.unit}` : ""}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Date slider */}
         <div className="px-6 py-2 flex items-center gap-4">
           <span

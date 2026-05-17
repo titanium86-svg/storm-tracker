@@ -3,11 +3,11 @@
 import { LAYERS, type WeatherLayer } from "@/lib/weather-layers";
 
 type Props = {
-  activeLayers: Set<WeatherLayer>;
-  onToggle: (layer: WeatherLayer) => void;
+  activeLayer: WeatherLayer | null;
+  onSelect: (layer: WeatherLayer) => void;
 };
 
-export default function LayerPanel({ activeLayers, onToggle }: Props) {
+export default function LayerPanel({ activeLayer, onSelect }: Props) {
   return (
     <div
       className="absolute top-4 left-4 z-10 rounded-lg overflow-hidden"
@@ -32,11 +32,11 @@ export default function LayerPanel({ activeLayers, onToggle }: Props) {
       </div>
 
       {LAYERS.map((layer) => {
-        const isActive = activeLayers.has(layer.id);
+        const isActive = activeLayer === layer.id;
         return (
           <button
             key={layer.id}
-            onClick={() => onToggle(layer.id)}
+            onClick={() => onSelect(layer.id)}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/5"
             style={{
               backgroundColor: isActive ? "rgba(8,145,178,0.12)" : "transparent",
