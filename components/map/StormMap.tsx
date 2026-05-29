@@ -56,18 +56,25 @@ function addStormMarker(
   const color = getCategoryColor(category);
   const catLabel = typeof category === "number" ? String(category) : category;
 
+  // Outer el: no transition — MapLibre controls its CSS transform for positioning.
+  // Inner el: handles visual scale animation so MapLibre's repositioning isn't delayed.
   const el = document.createElement("div");
-  el.style.cssText = `
+  el.style.cssText = `width:40px;height:40px;cursor:pointer;`;
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-label", `${storm.name} — click for details`);
+
+  const inner = document.createElement("div");
+  inner.style.cssText = `
     width:40px;height:40px;border-radius:50%;
     background:${color};border:2px solid rgba(255,255,255,0.4);
     display:flex;align-items:center;justify-content:center;
     color:white;font-size:12px;font-weight:700;
-    cursor:pointer;box-shadow:0 0 14px ${color}90;
+    box-shadow:0 0 14px ${color}90;
     font-family:var(--font-mono);transition:transform 0.15s;
   `;
-  el.textContent = catLabel;
-  el.setAttribute("role", "button");
-  el.setAttribute("aria-label", `${storm.name} — click for details`);
+  inner.textContent = catLabel;
+  el.appendChild(inner);
+
   // Popup on hover only — NOT attached to marker via .setPopup() to prevent map auto-pan
   const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: false, focusAfterOpen: false })
     .setLngLat([Number(storm.longitudeNumeric), Number(storm.latitudeNumeric)])
@@ -82,8 +89,8 @@ function addStormMarker(
       </div>
     `);
 
-  el.onmouseenter = () => { el.style.transform = "scale(1.15)"; popup.addTo(map); };
-  el.onmouseleave = () => { el.style.transform = "scale(1)"; popup.remove(); };
+  el.onmouseenter = () => { inner.style.transform = "scale(1.15)"; popup.addTo(map); };
+  el.onmouseleave = () => { inner.style.transform = "scale(1)"; popup.remove(); };
   el.onclick = () => onNavigate(storm.id);
 
   return new maplibregl.Marker({ element: el })
