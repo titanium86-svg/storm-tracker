@@ -27,6 +27,8 @@ import LocationSearch from "./LocationSearch";
 const SATELLITE_LAYER: GIBSLayer = "VIIRS_SNPP_CorrectedReflectance_TrueColor";
 const SOURCE_ID = "satellite";
 const LAYER_ID = "satellite-layer";
+const CARTO_SRC = "carto-dark";
+const CARTO_LAYER = "carto-layer";
 const WX_SRC = "weather-source";
 const WX_LAYER = "weather-overlay";
 
@@ -154,15 +156,25 @@ export default function StormMap() {
       container: containerRef.current,
       style: {
         version: 8,
-        sources: { [SOURCE_ID]: buildGIBSSource(SATELLITE_LAYER, selectedDate) },
+        sources: {
+          [CARTO_SRC]: {
+            type: "raster",
+            tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution:
+              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+          },
+          [SOURCE_ID]: buildGIBSSource(SATELLITE_LAYER, selectedDate),
+        },
         layers: [
-            { id: "background", type: "background", paint: { "background-color": "#0d1520" } },
-            { id: LAYER_ID, type: "raster", source: SOURCE_ID },
-          ],
+          { id: "background", type: "background", paint: { "background-color": "#0d1520" } },
+          { id: CARTO_LAYER, type: "raster", source: CARTO_SRC },
+          { id: LAYER_ID, type: "raster", source: SOURCE_ID },
+        ],
       },
       center: [-60, 15],
       zoom: 3,
-      maxZoom: 9,
+      maxZoom: 14,
       attributionControl: false,
     });
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");

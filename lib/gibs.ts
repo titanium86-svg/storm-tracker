@@ -10,6 +10,7 @@ export function buildGIBSSource(layer: GIBSLayer, date: string) {
       `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
     ],
     tileSize: 256,
+    maxzoom: 9, // GIBS only has tiles up to z=9; MapLibre upscales beyond
     attribution:
       'Imagery <a href="https://earthdata.nasa.gov/gibs">NASA EOSDIS GIBS</a>',
   };
