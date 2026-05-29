@@ -68,11 +68,9 @@ function addStormMarker(
   el.textContent = catLabel;
   el.setAttribute("role", "button");
   el.setAttribute("aria-label", `${storm.name} — click for details`);
-  el.onmouseenter = () => (el.style.transform = "scale(1.15)");
-  el.onmouseleave = () => (el.style.transform = "scale(1)");
-  el.onclick = () => onNavigate(storm.id);
-
-  const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: false })
+  // Popup on hover only — NOT attached to marker via .setPopup() to prevent map auto-pan
+  const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: false, focusAfterOpen: false })
+    .setLngLat([Number(storm.longitudeNumeric), Number(storm.latitudeNumeric)])
     .setHTML(`
       <div style="background:#0d0f14;border:1px solid #1b1f2a;border-radius:6px;padding:10px 14px;min-width:160px;font-family:'Inter Tight',system-ui,sans-serif;">
         <div style="color:#f5efe1;font-weight:600;font-size:14px;margin-bottom:3px">${esc(storm.name)}</div>
@@ -84,9 +82,12 @@ function addStormMarker(
       </div>
     `);
 
+  el.onmouseenter = () => { el.style.transform = "scale(1.15)"; popup.addTo(map); };
+  el.onmouseleave = () => { el.style.transform = "scale(1)"; popup.remove(); };
+  el.onclick = () => onNavigate(storm.id);
+
   return new maplibregl.Marker({ element: el })
     .setLngLat([Number(storm.longitudeNumeric), Number(storm.latitudeNumeric)])
-    .setPopup(popup)
     .addTo(map);
 }
 
@@ -217,6 +218,7 @@ export default function StormMap() {
 
     const navigate = (id: string) => router.push(`/live/${id}`);
     storms.forEach((storm) => { markersRef.current.push(addStormMarker(map, storm, navigate)); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
 
     storms.forEach((storm) => {
       if (!storm.trackCone?.geoJSON) return;
@@ -241,7 +243,7 @@ export default function StormMap() {
     });
 
     return () => { ac.abort(); };
-  }, [storms, mapReady, router]);
+  }, [storms, mapReady]); // router intentionally excluded — router.push is stable
 
   // Satellite date slider — only update tiles when date actually changes, not on initial load
   useEffect(() => {
