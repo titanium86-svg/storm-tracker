@@ -175,6 +175,7 @@ export default function StormMap() {
       center: [-60, 15],
       zoom: 3,
       maxZoom: 14,
+      renderWorldCopies: false,
       attributionControl: false,
     });
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");

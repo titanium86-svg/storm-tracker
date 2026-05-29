@@ -76,7 +76,7 @@ export default function StormStats({ storm }: Props) {
         />
         <StatBlock
           label="Position"
-          value={`${storm.latitudeNumeric.toFixed(1)}°N ${Math.abs(storm.longitudeNumeric).toFixed(1)}°W`}
+          value={`${Math.abs(storm.latitudeNumeric).toFixed(1)}°${storm.latitudeNumeric >= 0 ? "N" : "S"} ${Math.abs(storm.longitudeNumeric).toFixed(1)}°${storm.longitudeNumeric >= 0 ? "E" : "W"}`}
         />
       </div>
 

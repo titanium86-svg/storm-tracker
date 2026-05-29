@@ -23,18 +23,28 @@ export default function StormDetailMap({ storm }: Props) {
       style: {
         version: 8,
         sources: {
+          "carto-dark": {
+            type: "raster",
+            tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution:
+              '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
+          },
           satellite: buildGIBSSource(
             "MODIS_Terra_CorrectedReflectance_TrueColor",
             defaultSatelliteDate()
           ),
         },
         layers: [
-          { id: "satellite-layer", type: "raster", source: "satellite", maxzoom: 9 },
+          { id: "background", type: "background", paint: { "background-color": "#0d1520" } },
+          { id: "carto-layer", type: "raster", source: "carto-dark" },
+          { id: "satellite-layer", type: "raster", source: "satellite" },
         ],
       },
       center: [Number(storm.longitudeNumeric), Number(storm.latitudeNumeric)],
       zoom: 5,
-      maxZoom: 9,
+      maxZoom: 14,
+      renderWorldCopies: false,
       attributionControl: false,
     });
 
