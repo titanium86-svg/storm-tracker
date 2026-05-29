@@ -1,12 +1,18 @@
 import { notFound } from "next/navigation";
 import type { NHCActiveStormsResponse } from "@/lib/nhc";
+import { fetchJTWCStorms } from "@/lib/jtwc";
 import StormDetailClient from "./StormDetailClient";
 
 type Props = { params: Promise<{ stormId: string }> };
 
-// Fix #5: fetch NHC directly instead of looping back through self
 async function fetchStorm(stormId: string) {
   try {
+    // JTWC storm IDs start with "jtwc-"
+    if (stormId.startsWith("jtwc-")) {
+      const storms = await fetchJTWCStorms();
+      return storms.find((s) => s.id === stormId) ?? null;
+    }
+
     const res = await fetch("https://www.nhc.noaa.gov/CurrentStorms.json", {
       next: { revalidate: 1800 },
       headers: { "User-Agent": "StormTracker/1.0" },
