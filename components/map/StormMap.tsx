@@ -75,22 +75,35 @@ function addStormMarker(
   inner.textContent = catLabel;
   el.appendChild(inner);
 
-  // Popup on hover only — NOT attached to marker via .setPopup() to prevent map auto-pan
-  const popup = new maplibregl.Popup({ offset: 22, closeButton: false, closeOnClick: false, focusAfterOpen: false })
-    .setLngLat([Number(storm.longitudeNumeric), Number(storm.latitudeNumeric)])
-    .setHTML(`
-      <div style="background:#0d0f14;border:1px solid #1b1f2a;border-radius:6px;padding:10px 14px;min-width:160px;font-family:'Inter Tight',system-ui,sans-serif;">
-        <div style="color:#f5efe1;font-weight:600;font-size:14px;margin-bottom:3px">${esc(storm.name)}</div>
-        <div style="color:${color};font-size:12px;margin-bottom:6px">${esc(classificationLabel(storm.classification))}</div>
-        <div style="color:#9ca3af;font-size:12px;font-family:'JetBrains Mono',monospace">
-          ${knotsToKmh(windKnots)} km/h · ${esc(storm.pressure)} mb
-        </div>
-        <div style="color:#0891b2;font-size:11px;margin-top:6px">Click to view details →</div>
-      </div>
-    `);
+  // Custom DOM tooltip — avoids maplibregl.Popup which auto-pans the viewport on addTo()
+  const tooltip = document.createElement("div");
+  tooltip.style.cssText = `
+    position:absolute;pointer-events:none;display:none;
+    background:#0d0f14;border:1px solid #1b1f2a;border-radius:6px;
+    padding:10px 14px;min-width:160px;z-index:10;
+    font-family:'Inter Tight',system-ui,sans-serif;
+    transform:translate(-50%,-110%);
+  `;
+  tooltip.innerHTML = `
+    <div style="color:#f5efe1;font-weight:600;font-size:14px;margin-bottom:3px">${esc(storm.name)}</div>
+    <div style="color:${color};font-size:12px;margin-bottom:6px">${esc(classificationLabel(storm.classification))}</div>
+    <div style="color:#9ca3af;font-size:12px;font-family:'JetBrains Mono',monospace">
+      ${knotsToKmh(windKnots)} km/h · ${esc(storm.pressure)} mb
+    </div>
+    <div style="color:#0891b2;font-size:11px;margin-top:6px">Click to view details →</div>
+  `;
+  map.getContainer().appendChild(tooltip);
+  // Stash on el for cleanup when marker is removed
+  (el as HTMLElement & { _tooltip?: HTMLElement })._tooltip = tooltip;
 
-  el.onmouseenter = () => { inner.style.transform = "scale(1.15)"; popup.addTo(map); };
-  el.onmouseleave = () => { inner.style.transform = "scale(1)"; popup.remove(); };
+  el.onmouseenter = () => {
+    inner.style.transform = "scale(1.15)";
+    const pos = map.project([Number(storm.longitudeNumeric), Number(storm.latitudeNumeric)]);
+    tooltip.style.left = `${pos.x}px`;
+    tooltip.style.top = `${pos.y}px`;
+    tooltip.style.display = "block";
+  };
+  el.onmouseleave = () => { inner.style.transform = "scale(1)"; tooltip.style.display = "none"; };
   el.onclick = () => onNavigate(storm.id);
 
   return new maplibregl.Marker({ element: el })
@@ -211,7 +224,11 @@ export default function StormMap() {
     const ac = new AbortController();
     coneAbortRef.current = ac;
 
-    markersRef.current.forEach((m) => m.remove());
+    markersRef.current.forEach((m) => {
+      const markerEl = m.getElement() as HTMLElement & { _tooltip?: HTMLElement };
+      markerEl._tooltip?.remove();
+      m.remove();
+    });
     markersRef.current = [];
 
     coneIdsRef.current.forEach((id) => {
