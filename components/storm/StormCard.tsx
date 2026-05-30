@@ -77,14 +77,16 @@ export default function StormCardComponent({ storm, priority = false }: Props) {
           {storm.peak_wind_kmh && <StatMini label="Wind" value={`${storm.peak_wind_kmh} km/h`} />}
           {storm.peak_pressure && <StatMini label="Pressure" value={`${storm.peak_pressure} mb`} />}
           {storm.fatalities && <StatMini label="Deaths" value={storm.fatalities.toLocaleString()} />}
-          {storm.category_saffir && (
+          {storm.category_saffir ? (
             <div>
               <div className="text-xs" style={{ color: "var(--ash)", fontFamily: "var(--font-body)" }}>Level</div>
               <div className="text-xs font-bold tabular-nums" style={{ color, fontFamily: "var(--font-mono)" }}>
                 Cat {storm.category_saffir}
               </div>
             </div>
-          )}
+          ) : storm.classification ? (
+            <StatMini label="Level" value={storm.classification} />
+          ) : null}
         </div>
       </div>
     </Link>
