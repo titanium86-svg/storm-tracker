@@ -1,5 +1,5 @@
 import { getStorms } from "@/lib/library";
-import StormCardComponent from "@/components/storm/StormCard";
+import LibrarySearch from "@/components/library/LibrarySearch";
 import EmptyState from "@/components/ui/EmptyState";
 
 const BASINS = [
@@ -58,26 +58,14 @@ export default async function LibraryPage({ searchParams }: Props) {
         })}
       </div>
 
-      {/* Grid */}
+      {/* Search + Grid */}
       {storms.length === 0 ? (
         <EmptyState
           title="No storms yet"
           description="Run the seed script to populate the library."
         />
       ) : (
-        <>
-          <p
-            className="text-xs mb-6"
-            style={{ color: "var(--ash)", fontFamily: "var(--font-mono)" }}
-          >
-            {storms.length} storms
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {storms.map((storm) => (
-              <StormCardComponent key={storm.slug} storm={storm} />
-            ))}
-          </div>
-        </>
+        <LibrarySearch storms={storms} />
       )}
     </main>
   );
