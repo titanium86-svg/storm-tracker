@@ -49,21 +49,6 @@ export default function StormCardComponent({ storm, priority = false }: Props) {
           />
         )}
 
-        {/* Category badge — only for Saffir-Simpson storms */}
-        {storm.category_saffir && (
-          <span
-            className="absolute top-3 left-3 text-xs font-bold px-2 py-1 rounded z-10"
-            style={{
-              backgroundColor: color + "22", color,
-              border: `1px solid ${color}66`,
-              fontFamily: "var(--font-mono)",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            Cat {storm.category_saffir}
-          </span>
-        )}
-
         {/* Basin badge */}
         <span
           className="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded z-10"
