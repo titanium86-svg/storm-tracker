@@ -51,7 +51,7 @@ export default function StormCardComponent({ storm, priority = false }: Props) {
 
         {/* Basin badge */}
         <span
-          className="absolute top-3 right-3 text-xs px-2 py-1 rounded z-10"
+          className="absolute top-3 right-3 text-xs font-bold px-2 py-1 rounded z-10"
           style={{
             backgroundColor: "rgba(8,9,12,0.65)", color: "#6b9ec0",
             fontFamily: "var(--font-mono)",
