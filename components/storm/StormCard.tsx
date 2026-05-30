@@ -53,8 +53,8 @@ export default function StormCardComponent({ storm, priority = false }: Props) {
         <span
           className="absolute top-3 right-3 text-xs px-2 py-1 rounded z-10"
           style={{
-            backgroundColor: "rgba(14,40,80,0.85)", color: "#93c5fd",
-            border: "1px solid rgba(96,165,250,0.25)", fontFamily: "var(--font-mono)",
+            color: "#6b9ec0",
+            fontFamily: "var(--font-mono)",
           }}
         >
           {BASIN_LABEL[storm.basin] ?? storm.basin}
