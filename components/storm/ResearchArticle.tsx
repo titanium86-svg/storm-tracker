@@ -27,10 +27,10 @@ export default function ResearchArticle({ storm }: Props) {
       {/* Back nav */}
       <Link
         href="/library"
-        className="inline-flex items-center gap-1 text-xs mb-8 transition-colors"
+        className="inline-flex items-center gap-2 text-base mb-8 transition-colors"
         style={{ color: "var(--smoke)", fontFamily: "var(--font-body)" }}
       >
-        <ArrowLeft size={12} />
+        <ArrowLeft size={20} />
         Storm Library
       </Link>
 
