@@ -49,21 +49,12 @@ export default function StormCardComponent({ storm, priority = false }: Props) {
           />
         )}
 
-        {/* Badges */}
-        <span
-          className="absolute top-3 left-3 text-xs font-bold px-2 py-1 rounded z-10"
-          style={{
-            backgroundColor: color + "22", color,
-            border: `1px solid ${color}44`, fontFamily: "var(--font-mono)",
-          }}
-        >
-          {storm.category_saffir ? `Cat ${storm.category_saffir}` : storm.classification}
-        </span>
+        {/* Basin badge */}
         <span
           className="absolute top-3 right-3 text-xs px-2 py-1 rounded z-10"
           style={{
-            backgroundColor: "rgba(13,15,20,0.8)", color: "var(--smoke)",
-            fontFamily: "var(--font-mono)",
+            backgroundColor: "rgba(14,40,80,0.85)", color: "#93c5fd",
+            border: "1px solid rgba(96,165,250,0.25)", fontFamily: "var(--font-mono)",
           }}
         >
           {BASIN_LABEL[storm.basin] ?? storm.basin}
@@ -81,10 +72,20 @@ export default function StormCardComponent({ storm, priority = false }: Props) {
         <p className="text-xs line-clamp-2" style={{ color: "var(--smoke)", fontFamily: "var(--font-body)" }}>
           {storm.summary}
         </p>
-        <div className="mt-3 flex gap-4">
+        <div className="mt-3 flex gap-4 flex-wrap">
           {storm.peak_wind_kmh && <StatMini label="Wind" value={`${storm.peak_wind_kmh} km/h`} />}
           {storm.peak_pressure && <StatMini label="Pressure" value={`${storm.peak_pressure} mb`} />}
           {storm.fatalities && <StatMini label="Deaths" value={storm.fatalities.toLocaleString()} />}
+          {storm.category_saffir ? (
+            <div>
+              <div className="text-xs" style={{ color: "var(--ash)", fontFamily: "var(--font-body)" }}>Level</div>
+              <div className="text-xs font-bold tabular-nums" style={{ color, fontFamily: "var(--font-mono)" }}>
+                Cat {storm.category_saffir}
+              </div>
+            </div>
+          ) : (
+            <StatMini label="Level" value={storm.classification} />
+          )}
         </div>
       </div>
     </Link>
