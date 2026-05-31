@@ -203,10 +203,14 @@ export default function WindParticles({ map, points }: Props) {
 
         const alpha = Math.min((1 - p.age / MAX_AGE) * 0.95, 0.9);
         const [r, g, b] = speedRgb(speed);
+        // Boost brightness so particles are visible with screen/lighter blend on dark map
+        const pr = Math.min(r + 130, 255);
+        const pg = Math.min(g + 130, 255);
+        const pb = Math.min(b + 130, 255);
         pctx.beginPath();
         pctx.moveTo(p.px, p.py);
         pctx.lineTo(nx, ny);
-        pctx.strokeStyle = `rgba(${r},${g},${b},${alpha})`;
+        pctx.strokeStyle = `rgba(${pr},${pg},${pb},${alpha})`;
         pctx.stroke();
 
         p.px = nx; p.py = ny;
